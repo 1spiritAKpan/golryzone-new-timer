@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Church Countdown Timer</title>
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  *, *::before, *::after { box-sizing: inherit; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100%;
+    background: #1447e6;
+    color: #ffffff;
+    transition: background-color 0.4s ease, color 0.4s ease;
+    padding: 20px;
+    padding-top: calc(20px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    overflow-x: hidden;
+  }
+
+  body.time-up { background: #c0392b; color: #000000; }
+  body.blink { animation: blinkBg 1s steps(1) infinite; }
+
+  @keyframes blinkBg {
+    0%, 49%   { background-color: #c0392b; color: #000000; }
+    50%, 100% { background-color: #000000; color: #c0392b; }
+  }
+
+  .wrap { width: 100%; max-width: 480px; text-align: center; }
+
+  /* ---------- DISPLAY (TV) VIEW ---------- */
+  body.display-mode .wrap { max-width: 100%; }
+
+  .status-label {
+    font-size: clamp(1rem, 4vw, 1.4rem);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    opacity: 0.85;
+  }
+
+  body.display-mode .status-label { display: none; }
+
+  .display {
+    font-size: clamp(3.5rem, 18vw, 8rem);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    margin: 0;
+    word-break: break-word;
+  }
+
+  /* Countdown numbers on the TV */
+  body.display-mode .display { font-size: 40rem; }
+
+  /* TIME UP text on the TV only */
+  body.display-mode.time-up .display {
+    font-size: 30rem;
+    white-space: nowrap;
+    word-break: normal;
+  }
+
+  /* Control panel: only the 00:00 text blinks when time is up */
+  .display.blink-text { animation: blinkText 1s steps(1) infinite; }
+
+  @keyframes blinkText {
+    0%, 49%   { opacity: 1; }
+    50%, 100% { opacity: 0.1; }
+  }
+
+  body.display-mode .not-display-mode-only { display: none !important; }
+
+  /* ---------- CONTROL PANEL VIEW ---------- */
+  .inputs {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin: 24px 0 20px 0;
+    flex-wrap: wrap;
+  }
+
+  .field { display: flex; flex-direction: column; align-items: center; }
+  .field label { font-size: 0.8rem; opacity: 0.8; margin-bottom: 4px; }
+
+  .field input {
+    width: 84px;
+    font-size: 1.4rem;
+    text-align: center;
+    padding: 8px 4px;
+    border-radius: 10px;
+    border: none;
+    outline: none;
+    background: rgba(255,255,255,0.15);
+    color: inherit;
+    -moz-appearance: textfield;
+  }
+  .field input::-webkit-outer-spin-button,
+  .field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+  .buttons { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+
+  button {
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 12px 20px;
+    border-radius: 12px;
+    border: 2px solid currentColor;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    transition: transform 0.1s ease, opacity 0.2s ease;
+  }
+  button:active { transform: scale(0.96); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .open-display-btn {
+    margin-top: 22px;
+    background: rgba(255,255,255,0.12);
+  }
+
+  .hint { margin-top: 18px; font-size: 0.8rem; opacity: 0.7; }
+
+  .panel-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+    opacity: 0.9;
+  }
+  .panel-sub {
+    font-size: 0.8rem;
+    opacity: 0.65;
+    margin-bottom: 20px;
+  }
+</style>
+</head>
+<body id="body">
+  <div class="wrap">
+    <div class="not-display-mode-only panel-title">Control Panel</div>
+    <div class="not-display-mode-only panel-sub">This view is for the operator only. Open the TV display separately.</div>
+
+    <div class="status-label" id="statusLabel">Ready</div>
+    <div class="display" id="display">00:00</div>
+
+    <div class="inputs not-display-mode-only" id="inputs">
+      <div class="field">
+        <label for="minutesInput">Minutes</label>
+        <input type="number" id="minutesInput" min="0" max="999" value="5" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label for="secondsInput">Seconds</label>
+        <input type="number" id="secondsInput" min="0" max="59" value="0" inputmode="numeric">
+      </div>
+    </div>
+
+    <div class="buttons not-display-mode-only">
+      <button id="startBtn">Start</button>
+      <button id="pauseBtn" disabled>Pause</button>
+      <button id="resetBtn">Reset</button>
+    </div>
+
+    <button class="open-display-btn not-display-mode-only" id="openDisplayBtn">Open TV Display ↗</button>
+
+    <div class="hint not-display-mode-only" id="hint">Set the time, tap Start, then open the TV display on the projector/TV screen.</div>
+  </div>
+
+<script>
+(function() {
+  var STORAGE_KEY = 'church-timer-state-v1';
+  var CHANNEL_NAME = 'church-timer-channel-v1';
+
+  var params = new URLSearchParams(window.location.search);
+  var isDisplayMode = params.get('display') === '1';
+
+  var body = document.getElementById('body');
+  var display = document.getElementById('display');
+  var statusLabel = document.getElementById('statusLabel');
+
+  if (isDisplayMode) {
+    body.classList.add('display-mode');
+    document.title = 'Timer Display';
+  }
+
+  var bc = null;
+  try {
+    if ('BroadcastChannel' in window) {
+      bc = new BroadcastChannel(CHANNEL_NAME);
+    }
+  } catch (e) { bc = null; }
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function formatTime(sec) {
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return pad(m) + ':' + pad(s);
+  }
+
+  function renderState(state) {
+    if (!state) return;
+    if (state.timeUp) {
+      statusLabel.textContent = 'Finished';
+      body.classList.add('time-up');
+      if (isDisplayMode) {
+        // TV display: TIME UP with red/black blinking background
+        display.textContent = "TIME UP";
+        body.classList.add('blink');
+        display.classList.remove('blink-text');
+      } else {
+        // Control panel: solid red background, 00:00 text blinks
+        display.textContent = '00:00';
+        body.classList.remove('blink');
+        display.classList.add('blink-text');
+      }
+    } else {
+      display.textContent = formatTime(state.remaining);
+      body.classList.remove('time-up');
+      body.classList.remove('blink');
+      display.classList.remove('blink-text');
+      statusLabel.textContent = state.running ? 'Counting Down' : 'Ready';
+    }
+  }
+
+  function readStoredState() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) { return null; }
+  }
+
+  function writeStoredState(state) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  if (isDisplayMode) {
+    // ---------------- DISPLAY MODE: just listen and render ----------------
+    var initial = readStoredState();
+    renderState(initial || { remaining: 0, running: false, timeUp: false });
+
+    if (bc) {
+      bc.onmessage = function(ev) { renderState(ev.data); };
+    }
+    window.addEventListener('storage', function(ev) {
+      if (ev.key === STORAGE_KEY && ev.newValue) {
+        try { renderState(JSON.parse(ev.newValue)); } catch (e) {}
+      }
+    });
+    // Fallback poll in case events are missed
+    setInterval(function() {
+      var s = readStoredState();
+      if (s) renderState(s);
+    }, 1000);
+
+  } else {
+    // ---------------- CONTROL MODE: owns the countdown logic ----------------
+    var minutesInput = document.getElementById('minutesInput');
+    var secondsInput = document.getElementById('secondsInput');
+    var startBtn = document.getElementById('startBtn');
+    var pauseBtn = document.getElementById('pauseBtn');
+    var resetBtn = document.getElementById('resetBtn');
+    var hint = document.getElementById('hint');
+    var openDisplayBtn = document.getElementById('openDisplayBtn');
+
+    var remaining = 0;
+    var intervalId = null;
+    var running = false;
+    var timeUp = false;
+
+    function currentState() {
+      return { remaining: remaining, running: running, timeUp: timeUp };
+    }
+
+    function broadcast() {
+      var state = currentState();
+      writeStoredState(state);
+      if (bc) {
+        try { bc.postMessage(state); } catch (e) {}
+      }
+      renderState(state);
+    }
+
+    function tick() {
+      remaining -= 1;
+      if (remaining <= 0) {
+        remaining = 0;
+        stopInterval();
+        timeUp = true;
+        running = false;
+        startBtn.disabled = true;
+        pauseBtn.disabled = true;
+        hint.textContent = 'Time is up. Tap Reset to start again.';
+      }
+      broadcast();
+    }
+
+    function stopInterval() {
+      if (intervalId) { clearInterval(intervalId); intervalId = null; }
+    }
+
+    function getInputSeconds() {
+      var m = parseInt(minutesInput.value, 10);
+      var s = parseInt(secondsInput.value, 10);
+      if (isNaN(m) || m < 0) m = 0;
+      if (isNaN(s) || s < 0) s = 0;
+      if (s > 59) s = 59;
+      return (m * 60) + s;
+    }
+
+    function start() {
+      if (timeUp) return;
+      if (!running) {
+        if (remaining <= 0) {
+          remaining = getInputSeconds();
+          if (remaining <= 0) {
+            hint.textContent = 'Set a time greater than zero.';
+            return;
+          }
+        }
+        running = true;
+        startBtn.disabled = true;
+        pauseBtn.disabled = false;
+        minutesInput.disabled = true;
+        secondsInput.disabled = true;
+        hint.textContent = 'Running — the TV display will update automatically.';
+        broadcast();
+        intervalId = setInterval(tick, 1000);
+      }
+    }
+
+    function pause() {
+      if (running) {
+        running = false;
+        stopInterval();
+        startBtn.disabled = false;
+        pauseBtn.disabled = true;
+        hint.textContent = 'Paused. Tap Start to resume.';
+        broadcast();
+      }
+    }
+
+    function reset() {
+      stopInterval();
+      running = false;
+      timeUp = false;
+      remaining = 0;
+      startBtn.disabled = false;
+      pauseBtn.disabled = true;
+      minutesInput.disabled = false;
+      secondsInput.disabled = false;
+      hint.textContent = 'Set the time, tap Start, then open the TV display on the projector/TV screen.';
+      broadcast();
+    }
+
+    function openDisplay() {
+      var url = new URL(window.location.href);
+      url.searchParams.set('display', '1');
+      window.open(url.toString(), '_blank');
+    }
+
+    startBtn.addEventListener('click', start);
+    pauseBtn.addEventListener('click', pause);
+    resetBtn.addEventListener('click', reset);
+    openDisplayBtn.addEventListener('click', openDisplay);
+
+    broadcast();
+  }
+})();
+</script>
+</body>
+</html>
